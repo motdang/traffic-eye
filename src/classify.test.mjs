@@ -1,6 +1,9 @@
 /** Real User-Agent strings, checked against what we claim about them. */
 import { classify } from './classify.js';
 
+const CHROME_WIN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36';
+const REAL_CHROME = { 'sec-fetch-mode': 'navigate', 'sec-fetch-site': 'cross-site', 'sec-fetch-dest': 'document' };
+
 const CASES = [
   // --- AI ------------------------------------------------------------------
   ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)', 'ai', 'ClaudeBot'],
@@ -8,6 +11,12 @@ const CASES = [
   ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)', 'ai', 'GPTBot'],
   ['Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)', 'ai', 'OAI-SearchBot'],
   ['Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119 Safari/537.36 PerplexityBot/1.0', 'ai', 'PerplexityBot'],
+  ['Mozilla/5.0 (compatible; ExaSearchBot/1.0; +https://exa.ai)', 'ai', 'ExaSearchBot'],
+  ['ExaBot/1.0', 'ai', 'ExaSearchBot'],
+  ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; KeenableBot/1.0; +https://keenable.ai/bot)', 'ai', 'KeenableBot'],
+  ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Reflectionbot/1.0; +https://reflection.ai/bot) Chrome/151.0.0.0 Safari/537.36', 'ai', 'Reflectionbot'],
+  ['Mozilla/5.0 (compatible; ElevenlabsCrawler/1.0; +https://elevenlabs.io/docs/bots)', 'ai', 'ElevenlabsCrawler'],
+  ['Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 (compatible; AionBot/1.0)', 'other', 'AionBot'],
   ['Mozilla/5.0 (compatible; Google-Extended/1.0)', 'ai', 'Google-Extended'],
   ['Mozilla/5.0 (compatible; CCBot/2.0; +https://commoncrawl.org/faq/)', 'ai', 'CCBot'],
   ['Mozilla/5.0 (Linux; Android 8.0) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/81 Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)', 'ai', 'Bytespider'],
@@ -52,12 +61,45 @@ const CASES = [
   // --- edges ---------------------------------------------------------------
   ['', 'none', '(no user-agent)'],
   ['Mozilla/5.0 (compatible; SomeNewCrawler/1.0; +http://example.com)', 'other', 'SomeNewCrawler'],
+
+  // --- a browser's string, not a browser's request (added 2026-09-27) --------
+  // The Singapore scraper: stock Chrome strings from Tencent Cloud.
+  [CHROME_WIN, 'other', 'data centre · Tencent Cloud', { asn: 132203, headers: new Headers(REAL_CHROME) }],
+  // Same string, no Sec-Fetch-* — a script that copied Chrome's User-Agent only.
+  [CHROME_WIN, 'other', 'Chrome string, no Chrome', { asn: 9931, headers: new Headers({ accept: 'text/html' }) }],
+  // A person: home network, the headers Chrome really sends.
+  [CHROME_WIN, 'human', 'Chrome', { asn: 9931, headers: new Headers(REAL_CHROME) }],
+  // Safari 13 predates Sec-Fetch; from a home network it stays a person.
+  ['Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1', 'human', 'Safari', { asn: 131445, headers: new Headers({ accept: 'text/html' }) }],
+  // Chrome on iOS is WebKit and is not held to Chrome's headers.
+  ['Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0 Mobile/15E148 Safari/604.1', 'human', 'Chrome', { asn: 131445, headers: new Headers({}) }],
+  // Bluesky's link card, as it arrived on 2026-10-12 (3.18.47.21, AWS).
+  ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Bluesky Cardyb/1.1; +mailto:support@bsky.app) Chrome/W.X.Y.Z Safari/537.36', 'social', 'Bluesky', { asn: 16509, headers: new Headers({}) }],
+  ['http.rb/5.2.0 (Mastodon/4.3.0; +https://mastodon.social/)', 'social', 'Mastodon', { asn: 24940, headers: new Headers({}) }],
+  // A named crawler keeps its name wherever it runs.
+  ['Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)', 'ai', 'GPTBot', { asn: 8075, headers: new Headers({}) }],
+
+  // --- made on Cloudflare (added 2026-11-02) ---------------------------------
+  // The /search client of 26 Oct–1 Nov: Chrome's string and headers, from a Worker.
+  [CHROME_WIN, 'other', 'Cloudflare Worker · example.com', { asn: 13335, headers: new Headers({ ...REAL_CHROME, 'cf-worker': 'example.com' }) }],
+  [CHROME_WIN, 'other', 'Cloudflare Worker', { asn: 13335, headers: new Headers({ ...REAL_CHROME, 'cf-connecting-ip': '2a06:98c0:3600::103' }) }],
+  [CHROME_WIN, 'other', 'Cloudflare Browser Rendering', { asn: 13335, headers: new Headers({ ...REAL_CHROME, 'cf-brapi-devtools': 'x1' }) }],
+  // A person on WARP shares AS13335 and stays a person.
+  [CHROME_WIN, 'human', 'Chrome', { asn: 13335, headers: new Headers({ ...REAL_CHROME, 'cf-connecting-ip': '104.28.1.1' }) }],
+
+  // --- our own looking (added 2026-11-02) ------------------------------------
+  [CHROME_WIN, 'ours', 'marked browser', { asn: 23969, headers: new Headers({ ...REAL_CHROME, cookie: 'a=b; nb_ours=1' }) }],
+  [CHROME_WIN, 'human', 'Chrome', { asn: 23969, headers: new Headers({ ...REAL_CHROME, cookie: 'nb_ours=10' }) }],
+  ['Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/120 Safari/537.36', 'ours', 'test tool', { asn: 23969, headers: new Headers({ 'x-nanobot-test': '1' }) }],
+  [CHROME_WIN, 'ours', 'local preview', { asn: 23969, headers: new Headers({ ...REAL_CHROME, referer: 'http://localhost:8000/' }) }],
+  [CHROME_WIN, 'ours', 'local preview', { asn: 23969, headers: new Headers({ ...REAL_CHROME, referer: 'http://127.0.0.1:8811' }) }],
+  [CHROME_WIN, 'human', 'Chrome', { asn: 23969, headers: new Headers({ ...REAL_CHROME, referer: 'https://localhost.example.com/' }) }],
 ];
 
 let pass = 0;
 const fails = [];
-for (const [ua, wantCat, wantAgent] of CASES) {
-  const got = classify(ua);
+for (const [ua, wantCat, wantAgent, seen] of CASES) {
+  const got = classify(ua, seen);
   if (got.category === wantCat && got.agent === wantAgent) pass++;
   else fails.push({ ua: ua.slice(0, 66), want: `${wantCat}/${wantAgent}`, got: `${got.category}/${got.agent}` });
 }

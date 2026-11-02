@@ -53,7 +53,7 @@ async function record(request, response, env, ms) {
 
   const url = new URL(request.url);
   const ua = request.headers.get('user-agent') || '';
-  const { category, agent } = classify(ua);
+  const { category, agent } = classify(ua, { asn: request.cf?.asn, headers: request.headers });
 
   // Referrer host only. The full referring URL can carry search terms and
   // other things that are the visitor's business, not ours; the host answers
